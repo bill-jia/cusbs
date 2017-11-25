@@ -2,14 +2,15 @@
 
 from __future__ import print_function
 from fenics import *
+# ["plotting_backend"]="matplotlib"s
 from mshr import *
 import math
 import matplotlib.pyplot as plt
-# from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
 domain = Circle(Point(0,0),1)
-mesh = generate_mesh(domain,40)
+mesh = generate_mesh(domain,50)
 V = FunctionSpace(mesh,'P',2)
 
 def boundary(x,on_boundary):
@@ -20,8 +21,9 @@ u_next = TrialFunction(V)
 v = TestFunction(V)
 
 k1 = Constant(str(0.03))
-k2 = Constant(str(0.012))
+k2 = Constant(str(18.0))
 k3 = Constant(str(0.8))
+k4 = 289
 
 L_amp = 0.02
 L_radius = 0.5
@@ -48,7 +50,7 @@ def f_lux(u1,u2):
 
 
 	t1 = (A+B/(4*u1**2))
-	t2 = ((A+B/(4*u1**2))**2 - A**2)**0.5
+	t2 = (t1**2 - A**2)**0.5
 
 	outp = 0.5*(t1-t2)
 
@@ -78,10 +80,10 @@ def f_logic(u1,u2):
 
 
 T0 = 0.0
-T1 = 10.0
+T1 = 100.0
 dt = 0.01
 num_steps = int(math.ceil((T1-T0)/dt))
-# num_steps=1000
+num_steps=1000
 
 
 #initial conditions
@@ -91,55 +93,40 @@ F = u_next*v*dx - u_prev*v*dx - k1*f_light*v*dt*dx + k2*u_prev*v*dt*dx + D*dot(g
 a,l = lhs(F), rhs(F)
 t=0
 u = Function(V)
+
+ps = [(v.point().x(),v.point().y()) for v in vertices(mesh)]
+
+fig = plt.figure()
+
+X = np.arange(-1,1,0.01)
+Y = np.arange(-1,1,0.01)
+X,Y = np.meshgrid(X,Y)
+
+
+# X = [p[0] for p in ps]
+# Y = [p[1] for p in ps]
+
+u_2 = interpolate(u2,V)
 for n in range(num_steps):
   t += dt
   print(n)
   solve(a == l, u)
-  # plot(u)
-  print("max: {0}, min: {1}".format(np.max(u.vector().array()),np.min(u.vector().array())))
+  
   u_prev.assign(u)
 
-
-####Post process
-
-#get mesh points:
-ps = [(v.point().x(),v.point().y()) for v in vertices(mesh)]
-
-# main result
-u_1 = u 
-u1s = [u_1(p[0],p[1]) for p in ps]
-plot(u_1) # plot for sanity
-
-#light 
-u_2 = interpolate(u2,V)
-u2s = [u_2(p[0],p[1]) for p in ps]
-
-# construct u_3
-vs = zip(u1s,u2s) #bundle up u_1,u_2 points
-k4 = 1
-u3s = [k4*f_logic(u[0],u[1]) for u in vs]
-
-fig,axarr = plt.subplots(3)
+  u_1 = u 
+  u1s = [u_1(p[0],p[1]) for p in ps]
+  u2s = [u_2(p[0],p[1]) for p in ps]
+  # plot(u)
+  # construct u_3
+  vs = zip(u1s,u2s) #bundle up u_1,u_2 points
+  # k4 = 1
+  u3s = [k4*f_logic(us[0],us[1]) for us in vs]
 
 
-X = [p[0] for p in ps]
-Y = [p[1] for p in ps]
 
-axarr[0].tricontour(X,Y,u1s)
-axarr[0].set_title("$u_1$")
-axarr[0].set_xlabel("x [no units]")
-axarr[0].set_ylabel("y [no units]")
+ax = fig.add_subplot(111,projection='3d')
 
-axarr[1].tricontour(X,Y,u2s)
-axarr[1].set_title("$u_2$")
-axarr[1].set_xlabel("x [no units]")
-axarr[1].set_ylabel("y [no units]")
+# ax.plot_surface(X,Y,u)
 
-
-axarr[2].tricontour(X,Y,u3s)
-axarr[2].set_title("$u_3$")
-axarr[1].set_xlabel("x [no units]")
-axarr[1].set_ylabel("y [no units]")
-
-interactive()
 plt.show()
